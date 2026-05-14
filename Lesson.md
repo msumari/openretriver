@@ -1,1 +1,0 @@
-The start of the lesson that AI learned during the project duration.
