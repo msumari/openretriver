@@ -12,11 +12,33 @@ from src.models import (
     Chunk,
     EXTENSION_TO_LANGUAGE,
     NODE_TYPE_TO_SYMBOL_TYPE,
+    FILE_TYPE_CODE,
+    SYMBOL_TYPE_PREAMBLE,
 )
 
 logger = logging.getLogger(__name__)
 
 _language_cache: dict[str, dict] = {}
+
+
+def _make_code_chunk(
+    loaded_file: LoadedFile,
+    language: str,
+    text: str,
+    index: int,
+    symbol_name: str | None = None,
+    symbol_type: str = SYMBOL_TYPE_PREAMBLE,
+) -> Chunk:
+    return Chunk(
+        text=text,
+        source=loaded_file.path,
+        chunk_index=index,
+        file_type=FILE_TYPE_CODE,
+        language=language,
+        section_heading=None,
+        symbol_name=symbol_name,
+        symbol_type=symbol_type,
+    )
 
 
 def _get_language_config(ext: str) -> dict:
@@ -54,7 +76,9 @@ def _get_language_config(ext: str) -> dict:
                 ],
             },
         }
-        _language_cache[ext] = configs[ext]()
+        config = configs[ext]()
+        config["parser"] = Parser(config["language"])
+        _language_cache[ext] = config
     return _language_cache[ext]
 
 
@@ -84,9 +108,8 @@ def _extract_node_name(node: Node, extension: str) -> str:
 
 def _chunk_with_treesitter(loaded_file: LoadedFile) -> list[Chunk]:
     config = _get_language_config(loaded_file.extension)
-    parser = Parser(config["language"])
     source_bytes = loaded_file.content.encode("utf-8")
-    tree = parser.parse(source_bytes)
+    tree = config["parser"].parse(source_bytes)
 
     language = EXTENSION_TO_LANGUAGE[loaded_file.extension]
     chunks = []
@@ -103,16 +126,7 @@ def _chunk_with_treesitter(loaded_file: LoadedFile) -> list[Chunk]:
         preamble_text = source_bytes[:preamble_end].decode("utf-8").strip()
         if preamble_text:
             chunks.append(
-                Chunk(
-                    text=preamble_text,
-                    source=loaded_file.path,
-                    chunk_index=0,
-                    file_type="code",
-                    language=language,
-                    section_heading=None,
-                    symbol_name=None,
-                    symbol_type="preamble",
-                )
+                _make_code_chunk(loaded_file, language, preamble_text, 0)
             )
 
     for node in top_nodes:
@@ -121,30 +135,12 @@ def _chunk_with_treesitter(loaded_file: LoadedFile) -> list[Chunk]:
         symbol_type = NODE_TYPE_TO_SYMBOL_TYPE.get(node.type, "function")
 
         chunks.append(
-            Chunk(
-                text=text,
-                source=loaded_file.path,
-                chunk_index=len(chunks),
-                file_type="code",
-                language=language,
-                section_heading=None,
-                symbol_name=name,
-                symbol_type=symbol_type,
-            )
+            _make_code_chunk(loaded_file, language, text, len(chunks), name, symbol_type)
         )
 
     if not chunks:
         chunks.append(
-            Chunk(
-                text=loaded_file.content.strip(),
-                source=loaded_file.path,
-                chunk_index=0,
-                file_type="code",
-                language=language,
-                section_heading=None,
-                symbol_name=None,
-                symbol_type="preamble",
-            )
+            _make_code_chunk(loaded_file, language, loaded_file.content.strip(), 0)
         )
 
     return chunks
@@ -207,50 +203,17 @@ def _chunk_with_regex(loaded_file: LoadedFile) -> list[Chunk]:
 
     pattern = patterns.get(loaded_file.extension)
     if not pattern:
-        return [
-            Chunk(
-                text=loaded_file.content,
-                source=loaded_file.path,
-                chunk_index=0,
-                file_type="code",
-                language=language,
-                section_heading=None,
-                symbol_name=None,
-                symbol_type="preamble",
-            )
-        ]
+        return [_make_code_chunk(loaded_file, language, loaded_file.content, 0)]
 
     matches = list(pattern.finditer(loaded_file.content))
     if not matches:
-        return [
-            Chunk(
-                text=loaded_file.content.strip(),
-                source=loaded_file.path,
-                chunk_index=0,
-                file_type="code",
-                language=language,
-                section_heading=None,
-                symbol_name=None,
-                symbol_type="preamble",
-            )
-        ]
+        return [_make_code_chunk(loaded_file, language, loaded_file.content.strip(), 0)]
 
     chunks = []
     first_match_pos = matches[0].start()
     preamble = loaded_file.content[:first_match_pos].strip()
     if preamble:
-        chunks.append(
-            Chunk(
-                text=preamble,
-                source=loaded_file.path,
-                chunk_index=0,
-                file_type="code",
-                language=language,
-                section_heading=None,
-                symbol_name=None,
-                symbol_type="preamble",
-            )
-        )
+        chunks.append(_make_code_chunk(loaded_file, language, preamble, 0))
 
     for i, match in enumerate(matches):
         start = match.start()
@@ -262,16 +225,7 @@ def _chunk_with_regex(loaded_file: LoadedFile) -> list[Chunk]:
         symbol_type = _guess_symbol_type(match.group(0))
 
         chunks.append(
-            Chunk(
-                text=text,
-                source=loaded_file.path,
-                chunk_index=len(chunks),
-                file_type="code",
-                language=language,
-                section_heading=None,
-                symbol_name=name,
-                symbol_type=symbol_type,
-            )
+            _make_code_chunk(loaded_file, language, text, len(chunks), name, symbol_type)
         )
 
     return chunks

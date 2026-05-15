@@ -1,7 +1,7 @@
 import re
 from typing import NamedTuple
 
-from src.models import LoadedFile, Chunk
+from src.models import LoadedFile, Chunk, FILE_TYPE_DOC
 
 
 class _Block(NamedTuple):
@@ -113,7 +113,7 @@ def chunk_doc(loaded_file: LoadedFile) -> list[Chunk]:
             text=block.text,
             source=loaded_file.path,
             chunk_index=i,
-            file_type="doc",
+            file_type=FILE_TYPE_DOC,
             language=None,
             section_heading=block.heading if is_markdown else None,
             symbol_name=None,

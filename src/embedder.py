@@ -25,6 +25,6 @@ def embed_chunks(chunks: list[Chunk], model: TextEmbedding | None = None) -> lis
     embeddings = list(model.embed(texts))
 
     return [
-        EmbeddedChunk(chunk=chunk, vector=[float(x) for x in embedding])
+        EmbeddedChunk(chunk=chunk, vector=embedding.tolist())
         for chunk, embedding in zip(chunks, embeddings)
     ]

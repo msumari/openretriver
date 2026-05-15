@@ -1,10 +1,11 @@
+import dataclasses
 import hashlib
 import os
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
-from src.models import EmbeddedChunk
+from src.models import Chunk, EmbeddedChunk
 
 COLLECTION_NAME = "openretriver"
 VECTOR_SIZE = 384
@@ -20,8 +21,7 @@ def get_client(
 
 
 def ensure_collection(client: QdrantClient, collection_name: str = COLLECTION_NAME) -> None:
-    collections = [c.name for c in client.get_collections().collections]
-    if collection_name not in collections:
+    if not client.collection_exists(collection_name):
         client.create_collection(
             collection_name=collection_name,
             vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
@@ -54,14 +54,5 @@ def _make_point_id(source: str, chunk_index: int) -> int:
     return int(digest[:16], 16)
 
 
-def _chunk_to_payload(chunk) -> dict:
-    return {
-        "source": chunk.source,
-        "file_type": chunk.file_type,
-        "language": chunk.language,
-        "section_heading": chunk.section_heading,
-        "chunk_index": chunk.chunk_index,
-        "text": chunk.text,
-        "symbol_name": chunk.symbol_name,
-        "symbol_type": chunk.symbol_type,
-    }
+def _chunk_to_payload(chunk: Chunk) -> dict:
+    return dataclasses.asdict(chunk)

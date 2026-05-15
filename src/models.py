@@ -26,9 +26,14 @@ class EmbeddedChunk:
     vector: list[float]
 
 
-SUPPORTED_EXTENSIONS: set[str] = {".md", ".txt", ".py", ".js", ".ts", ".rs"}
+FILE_TYPE_DOC = "doc"
+FILE_TYPE_CODE = "code"
+FILE_TYPE_MANIFEST = "manifest"
+SYMBOL_TYPE_PREAMBLE = "preamble"
+
 DOC_EXTENSIONS: set[str] = {".md", ".txt"}
 CODE_EXTENSIONS: set[str] = {".py", ".js", ".ts", ".rs"}
+SUPPORTED_EXTENSIONS: set[str] = DOC_EXTENSIONS | CODE_EXTENSIONS
 IGNORE_DIRS: set[str] = {
     ".git",
     "node_modules",
