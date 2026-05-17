@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 .env
+# Sample files used for manual ingest testing (not needed by test suite)
+tests/fixtures/

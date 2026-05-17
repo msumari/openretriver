@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import dataclass
 
 
@@ -61,3 +62,7 @@ NODE_TYPE_TO_SYMBOL_TYPE = {
     "struct_item": "struct",
     "enum_item": "enum",
 }
+
+
+def compute_file_hash(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
