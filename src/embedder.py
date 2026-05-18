@@ -16,6 +16,12 @@ def _get_model() -> TextEmbedding:
     return model
 
 
+def embed_query(text: str) -> list[float]:
+    model = _get_model()
+    embeddings = list(model.embed([text]))
+    return embeddings[0].tolist()
+
+
 def embed_chunks(chunks: list[Chunk], model: TextEmbedding | None = None) -> list[EmbeddedChunk]:
     if not chunks:
         return []
