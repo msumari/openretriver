@@ -1,7 +1,7 @@
 import pytest
 from qdrant_client import QdrantClient
 
-from src.models import Chunk, EmbeddedChunk, FILE_TYPE_DOC, FILE_TYPE_CODE, FILE_TYPE_MANIFEST
+from src.models import Chunk, EmbeddedChunk, SparseVector, FILE_TYPE_DOC, FILE_TYPE_CODE, FILE_TYPE_MANIFEST
 from src.models import compute_file_hash
 from src.storage import (
     ensure_collection,
@@ -11,6 +11,7 @@ from src.storage import (
     fetch_manifest,
     _make_point_id,
     COLLECTION_NAME,
+    VECTOR_NAME_DENSE,
 )
 
 
@@ -30,7 +31,7 @@ def _make_embedded_chunk(text: str, index: int, source: str = "test.md") -> Embe
         symbol_name=None,
         symbol_type=None,
     )
-    return EmbeddedChunk(chunk=chunk, vector=[0.1] * 384)
+    return EmbeddedChunk(chunk=chunk, vector=[0.1] * 384, sparse_vector=SparseVector(indices=[1, 2], values=[1.0, 0.5]))
 
 
 def test_ensure_collection_creates(memory_client):
@@ -102,6 +103,7 @@ def test_search_returns_results(memory_client):
     results = memory_client.query_points(
         collection_name=COLLECTION_NAME,
         query=[0.1] * 384,
+        using=VECTOR_NAME_DENSE,
         limit=2,
     )
     assert len(results.points) == 2

@@ -18,12 +18,17 @@ from qdrant_client.models import (
     IntegerIndexParams,
     IntegerIndexType,
     PayloadSchemaType,
+    SparseVectorParams,
+    SparseVector as QdrantSparseVector,
+    Modifier,
 )
 
 from src.models import Chunk, EmbeddedChunk, SessionMessage, FILE_TYPE_MANIFEST, FILE_TYPE_SESSION
 
 COLLECTION_NAME = "openretriver"
 VECTOR_SIZE = 384
+VECTOR_NAME_DENSE = "dense"
+VECTOR_NAME_SPARSE = "bm25"
 
 
 def _hash_to_point_id(key: str) -> int:
@@ -31,10 +36,10 @@ def _hash_to_point_id(key: str) -> int:
     return int(digest[:16], 16)
 
 
-def _dummy_vector() -> list[float]:
+def _dummy_vector() -> dict:
     v = [0.0] * VECTOR_SIZE
     v[0] = 1.0
-    return v
+    return {VECTOR_NAME_DENSE: v}
 
 
 def get_client(
@@ -77,9 +82,20 @@ def ensure_collection(client: QdrantClient, collection_name: str = COLLECTION_NA
     if not client.collection_exists(collection_name):
         client.create_collection(
             collection_name=collection_name,
-            vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
+            vectors_config={VECTOR_NAME_DENSE: VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE)},
+            sparse_vectors_config={VECTOR_NAME_SPARSE: SparseVectorParams(modifier=Modifier.IDF)},
         )
         _create_payload_indexes(client, collection_name)
+
+
+def _build_vector(ec: EmbeddedChunk) -> dict:
+    vectors = {VECTOR_NAME_DENSE: ec.vector}
+    if ec.sparse_vector:
+        vectors[VECTOR_NAME_SPARSE] = QdrantSparseVector(
+            indices=ec.sparse_vector.indices,
+            values=ec.sparse_vector.values,
+        )
+    return vectors
 
 
 def upsert_chunks(
@@ -93,7 +109,7 @@ def upsert_chunks(
     points = [
         PointStruct(
             id=_make_point_id(ec.chunk.source, ec.chunk.chunk_index),
-            vector=ec.vector,
+            vector=_build_vector(ec),
             payload=_chunk_to_payload(ec.chunk),
         )
         for ec in embedded_chunks

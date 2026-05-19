@@ -22,9 +22,16 @@ class Chunk:
 
 
 @dataclass(frozen=True)
+class SparseVector:
+    indices: list[int]
+    values: list[float]
+
+
+@dataclass(frozen=True)
 class EmbeddedChunk:
     chunk: Chunk
     vector: list[float]
+    sparse_vector: SparseVector | None = None
 
 
 FILE_TYPE_DOC = "doc"

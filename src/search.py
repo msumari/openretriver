@@ -7,14 +7,14 @@ from qdrant_client.models import (
     Filter,
     FusionQuery,
     Fusion,
-    MatchText,
     MatchValue,
     Prefetch,
+    SparseVector as QdrantSparseVector,
 )
 
-from src.embedder import embed_query
+from src.embedder import embed_query, embed_query_sparse
 from src.models import FILE_TYPE_MANIFEST, FILE_TYPE_SESSION
-from src.storage import get_client, COLLECTION_NAME
+from src.storage import get_client, COLLECTION_NAME, VECTOR_NAME_DENSE, VECTOR_NAME_SPARSE
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,9 @@ class SearchResult:
     chunk_index: int
 
 
-def _embed_query(query: str) -> list[float]:
-    return embed_query(query)
+def _embed_query_sparse(query: str) -> QdrantSparseVector:
+    sparse = embed_query_sparse(query)
+    return QdrantSparseVector(indices=sparse.indices, values=sparse.values)
 
 
 def _metadata_filter() -> Filter:
@@ -48,36 +49,33 @@ def search(
     query: str,
     client: QdrantClient | None = None,
     top_k: int = 5,
-    score_threshold: float = 0.6,
+    score_threshold: float = 0.5,
     collection_name: str = COLLECTION_NAME,
 ) -> list[SearchResult]:
     if client is None:
         client = get_client()
 
-    query_vector = _embed_query(query)
+    query_vector = embed_query(query)
+    query_sparse = _embed_query_sparse(query)
     exclude_metadata = _metadata_filter()
 
-    vector_prefetch = Prefetch(
+    dense_prefetch = Prefetch(
         query=query_vector,
+        using=VECTOR_NAME_DENSE,
         filter=exclude_metadata,
         limit=top_k * 2,
     )
 
-    text_prefetch = Prefetch(
-        query=query_vector,
-        filter=Filter(
-            must=[FieldCondition(key="text", match=MatchText(text=query))],
-            must_not=[
-                FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_MANIFEST)),
-                FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_SESSION)),
-            ],
-        ),
+    sparse_prefetch = Prefetch(
+        query=query_sparse,
+        using=VECTOR_NAME_SPARSE,
+        filter=exclude_metadata,
         limit=top_k * 2,
     )
 
     response = client.query_points(
         collection_name=collection_name,
-        prefetch=[vector_prefetch, text_prefetch],
+        prefetch=[dense_prefetch, sparse_prefetch],
         query=FusionQuery(fusion=Fusion.RRF),
         limit=top_k,
         with_payload=True,

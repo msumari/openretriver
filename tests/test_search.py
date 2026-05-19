@@ -2,11 +2,15 @@ import pytest
 from unittest.mock import patch
 from qdrant_client import QdrantClient
 
-from src.models import Chunk, EmbeddedChunk, FILE_TYPE_DOC, FILE_TYPE_CODE, FILE_TYPE_MANIFEST
+from qdrant_client.models import SparseVector as QdrantSparseVector
+
+from src.models import Chunk, EmbeddedChunk, SparseVector, FILE_TYPE_DOC, FILE_TYPE_CODE, FILE_TYPE_MANIFEST
 from src.storage import ensure_collection, upsert_chunks, store_manifest, COLLECTION_NAME
 
 
 DUMMY_VECTOR = [0.1] * 384
+DUMMY_SPARSE = SparseVector(indices=[1, 2, 3], values=[1.0, 0.5, 0.3])
+DUMMY_QDRANT_SPARSE = QdrantSparseVector(indices=[1, 2, 3], values=[1.0, 0.5, 0.3])
 
 
 def _make_embedded(text, index, source, file_type=FILE_TYPE_DOC,
@@ -21,7 +25,7 @@ def _make_embedded(text, index, source, file_type=FILE_TYPE_DOC,
         symbol_name=symbol_name,
         symbol_type=None,
     )
-    return EmbeddedChunk(chunk=chunk, vector=DUMMY_VECTOR)
+    return EmbeddedChunk(chunk=chunk, vector=DUMMY_VECTOR, sparse_vector=DUMMY_SPARSE)
 
 
 @pytest.fixture
@@ -48,8 +52,9 @@ def populated_client(memory_client):
     return memory_client
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_returns_results(mock_embed, populated_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_returns_results(mock_embed, mock_sparse, populated_client):
     from src.search import search, SearchResult
 
     results = search("how does file loading work", client=populated_client, score_threshold=0.0)
@@ -57,8 +62,9 @@ def test_search_returns_results(mock_embed, populated_client):
     assert all(isinstance(r, SearchResult) for r in results)
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_result_fields(mock_embed, populated_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_result_fields(mock_embed, mock_sparse, populated_client):
     from src.search import search
 
     results = search("loader", client=populated_client, score_threshold=0.0)
@@ -71,16 +77,18 @@ def test_search_result_fields(mock_embed, populated_client):
     assert isinstance(r.chunk_index, int)
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_respects_top_k(mock_embed, populated_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_respects_top_k(mock_embed, mock_sparse, populated_client):
     from src.search import search
 
     results = search("python", client=populated_client, top_k=2, score_threshold=0.0)
     assert len(results) <= 2
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_excludes_manifest_points(mock_embed, populated_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_excludes_manifest_points(mock_embed, mock_sparse, populated_client):
     from src.search import search
 
     store_manifest(populated_client, {"src/loader.py": {"content_hash": "abc", "chunk_count": 1}})
@@ -89,16 +97,18 @@ def test_search_excludes_manifest_points(mock_embed, populated_client):
         assert r.file_type != FILE_TYPE_MANIFEST
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_score_threshold_filters_low_scores(mock_embed, populated_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_score_threshold_filters_low_scores(mock_embed, mock_sparse, populated_client):
     from src.search import search
 
     results = search("anything", client=populated_client, score_threshold=999.0)
     assert results == []
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_results_ordered_by_score_descending(mock_embed, populated_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_results_ordered_by_score_descending(mock_embed, mock_sparse, populated_client):
     from src.search import search
 
     results = search("file loading", client=populated_client, top_k=5, score_threshold=0.0)
@@ -107,8 +117,9 @@ def test_search_results_ordered_by_score_descending(mock_embed, populated_client
         assert scores == sorted(scores, reverse=True)
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_empty_collection(mock_embed, memory_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_empty_collection(mock_embed, mock_sparse, memory_client):
     from src.search import search
 
     ensure_collection(memory_client)
@@ -116,8 +127,9 @@ def test_search_empty_collection(mock_embed, memory_client):
     assert results == []
 
 
-@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
-def test_search_excludes_session_points(mock_embed, populated_client):
+@patch("src.search._embed_query_sparse", return_value=DUMMY_QDRANT_SPARSE)
+@patch("src.search.embed_query", return_value=DUMMY_VECTOR)
+def test_search_excludes_session_points(mock_embed, mock_sparse, populated_client):
     from src.search import search
     from src.models import FILE_TYPE_SESSION
     from src.storage import ensure_session_indexes, store_session_message

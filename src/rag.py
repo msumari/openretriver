@@ -87,7 +87,7 @@ def ask(
     question: str,
     client: QdrantClient | None = None,
     top_k: int = 5,
-    score_threshold: float = 0.6,
+    score_threshold: float = 0.5,
     generate: GenerateFn | None = None,
     history: list[SessionMessage] | None = None,
 ) -> RAGResponse:
