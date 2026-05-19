@@ -21,6 +21,9 @@ ingest:
 ask:
 	uv run python -m src.rag $(q)
 
+chat:
+	uv run python -m src.session
+
 qdrant-up:
 	docker run -d --name qdrant -p 127.0.0.1:6333:6333 -v qdrant_data:/qdrant/storage -e QDRANT__SERVICE__API_KEY=$(QDRANT_API_KEY) qdrant/qdrant
 

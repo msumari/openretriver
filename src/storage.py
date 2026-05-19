@@ -1,6 +1,7 @@
 import dataclasses
 import hashlib
 import os
+import time
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -10,6 +11,7 @@ from qdrant_client.models import (
     Filter,
     FieldCondition,
     MatchValue,
+    Range,
     TextIndexParams,
     TextIndexType,
     TokenizerType,
@@ -18,10 +20,21 @@ from qdrant_client.models import (
     PayloadSchemaType,
 )
 
-from src.models import Chunk, EmbeddedChunk, FILE_TYPE_MANIFEST
+from src.models import Chunk, EmbeddedChunk, SessionMessage, FILE_TYPE_MANIFEST, FILE_TYPE_SESSION
 
 COLLECTION_NAME = "openretriver"
 VECTOR_SIZE = 384
+
+
+def _hash_to_point_id(key: str) -> int:
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return int(digest[:16], 16)
+
+
+def _dummy_vector() -> list[float]:
+    v = [0.0] * VECTOR_SIZE
+    v[0] = 1.0
+    return v
 
 
 def get_client(
@@ -90,9 +103,7 @@ def upsert_chunks(
 
 
 def _make_point_id(source: str, chunk_index: int) -> int:
-    key = f"{source}:{chunk_index}"
-    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
-    return int(digest[:16], 16)
+    return _hash_to_point_id(f"{source}:{chunk_index}")
 
 
 def _chunk_to_payload(chunk: Chunk) -> dict:
@@ -113,9 +124,7 @@ def delete_source(
 
 
 def _make_manifest_point_id(source: str) -> int:
-    key = f"manifest:{source}"
-    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
-    return int(digest[:16], 16)
+    return _hash_to_point_id(f"manifest:{source}")
 
 
 def store_manifest(
@@ -126,13 +135,10 @@ def store_manifest(
     if not manifest:
         return
 
-    dummy_vector = [0.0] * VECTOR_SIZE
-    dummy_vector[0] = 1.0
-
     points = [
         PointStruct(
             id=_make_manifest_point_id(source),
-            vector=dummy_vector,
+            vector=_dummy_vector(),
             payload={
                 "source": source,
                 "file_type": FILE_TYPE_MANIFEST,
@@ -174,3 +180,109 @@ def fetch_manifest(
         offset = next_offset
 
     return manifest
+
+
+def _make_session_point_id(session_id: str, timestamp: int, role: str) -> int:
+    return _hash_to_point_id(f"session:{session_id}:{timestamp}:{role}")
+
+
+def ensure_session_indexes(client: QdrantClient, collection_name: str = COLLECTION_NAME) -> None:
+    client.create_payload_index(
+        collection_name=collection_name,
+        field_name="session_id",
+        field_schema=PayloadSchemaType.KEYWORD,
+    )
+    client.create_payload_index(
+        collection_name=collection_name,
+        field_name="timestamp",
+        field_schema=IntegerIndexParams(
+            type=IntegerIndexType.INTEGER,
+            lookup=True,
+            range=True,
+        ),
+    )
+
+
+def store_session_message(
+    client: QdrantClient,
+    messages: SessionMessage | list[SessionMessage],
+    collection_name: str = COLLECTION_NAME,
+) -> None:
+    if isinstance(messages, SessionMessage):
+        messages = [messages]
+    if not messages:
+        return
+    points = [
+        PointStruct(
+            id=_make_session_point_id(msg.session_id, msg.timestamp, msg.role),
+            vector=_dummy_vector(),
+            payload={"file_type": FILE_TYPE_SESSION, **dataclasses.asdict(msg)},
+        )
+        for msg in messages
+    ]
+    client.upsert(collection_name=collection_name, points=points)
+
+
+def fetch_session_history(
+    client: QdrantClient,
+    session_id: str,
+    limit: int = 10,
+    collection_name: str = COLLECTION_NAME,
+) -> list[SessionMessage]:
+    records, _ = client.scroll(
+        collection_name=collection_name,
+        scroll_filter=Filter(
+            must=[
+                FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_SESSION)),
+                FieldCondition(key="session_id", match=MatchValue(value=session_id)),
+            ]
+        ),
+        limit=1000,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    messages = [
+        SessionMessage(
+            session_id=r.payload["session_id"],
+            timestamp=r.payload["timestamp"],
+            role=r.payload["role"],
+            content=r.payload["content"],
+        )
+        for r in records
+    ]
+    messages.sort(key=lambda m: m.timestamp)
+    return messages[-limit:]
+
+
+def cleanup_expired_sessions(
+    client: QdrantClient,
+    ttl_hours: int = 24,
+    collection_name: str = COLLECTION_NAME,
+) -> None:
+    cutoff_ms = int((time.time() - ttl_hours * 3600) * 1000)
+    client.delete(
+        collection_name=collection_name,
+        points_selector=Filter(
+            must=[
+                FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_SESSION)),
+                FieldCondition(key="timestamp", range=Range(lt=cutoff_ms)),
+            ]
+        ),
+    )
+
+
+def delete_session(
+    client: QdrantClient,
+    session_id: str,
+    collection_name: str = COLLECTION_NAME,
+) -> None:
+    client.delete(
+        collection_name=collection_name,
+        points_selector=Filter(
+            must=[
+                FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_SESSION)),
+                FieldCondition(key="session_id", match=MatchValue(value=session_id)),
+            ]
+        ),
+    )

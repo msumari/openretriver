@@ -13,7 +13,7 @@ from qdrant_client.models import (
 )
 
 from src.embedder import embed_query
-from src.models import FILE_TYPE_MANIFEST
+from src.models import FILE_TYPE_MANIFEST, FILE_TYPE_SESSION
 from src.storage import get_client, COLLECTION_NAME
 
 logger = logging.getLogger(__name__)
@@ -35,9 +35,12 @@ def _embed_query(query: str) -> list[float]:
     return embed_query(query)
 
 
-def _manifest_filter() -> Filter:
+def _metadata_filter() -> Filter:
     return Filter(
-        must_not=[FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_MANIFEST))]
+        must_not=[
+            FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_MANIFEST)),
+            FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_SESSION)),
+        ]
     )
 
 
@@ -52,11 +55,11 @@ def search(
         client = get_client()
 
     query_vector = _embed_query(query)
-    exclude_manifest = _manifest_filter()
+    exclude_metadata = _metadata_filter()
 
     vector_prefetch = Prefetch(
         query=query_vector,
-        filter=exclude_manifest,
+        filter=exclude_metadata,
         limit=top_k * 2,
     )
 
@@ -64,7 +67,10 @@ def search(
         query=query_vector,
         filter=Filter(
             must=[FieldCondition(key="text", match=MatchText(text=query))],
-            must_not=[FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_MANIFEST))],
+            must_not=[
+                FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_MANIFEST)),
+                FieldCondition(key="file_type", match=MatchValue(value=FILE_TYPE_SESSION)),
+            ],
         ),
         limit=top_k * 2,
     )
@@ -79,6 +85,7 @@ def search(
 
     results = []
     for point in response.points:
+        logger.debug("  raw %.4f  %s", point.score, point.payload.get("source", "?"))
         if point.score < score_threshold:
             continue
         payload = point.payload

@@ -30,6 +30,7 @@ class EmbeddedChunk:
 FILE_TYPE_DOC = "doc"
 FILE_TYPE_CODE = "code"
 FILE_TYPE_MANIFEST = "manifest"
+FILE_TYPE_SESSION = "session"
 SYMBOL_TYPE_PREAMBLE = "preamble"
 
 DOC_EXTENSIONS: set[str] = {".md", ".txt"}
@@ -62,6 +63,14 @@ NODE_TYPE_TO_SYMBOL_TYPE = {
     "struct_item": "struct",
     "enum_item": "enum",
 }
+
+
+@dataclass(frozen=True)
+class SessionMessage:
+    session_id: str
+    timestamp: int
+    role: str
+    content: str
 
 
 def compute_file_hash(content: str) -> str:

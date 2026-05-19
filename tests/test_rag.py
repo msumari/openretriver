@@ -143,3 +143,42 @@ def test_ask_extracts_multiple_sources(mock_get_provider, mock_search):
     assert "src/change_detection.py" in response.sources
     assert "src/pipeline.py" in response.sources
     assert response.chunks_used == 2
+
+
+# --- History formatting tests ---
+
+
+def test_format_history_empty():
+    from src.rag import format_history
+    from src.models import SessionMessage
+
+    assert format_history([]) == ""
+
+
+def test_format_history_formats_turns():
+    from src.rag import format_history
+    from src.models import SessionMessage
+
+    messages = [
+        SessionMessage(session_id="s1", timestamp=1000, role="user", content="What is X?"),
+        SessionMessage(session_id="s1", timestamp=2000, role="assistant", content="X is a thing."),
+    ]
+    result = format_history(messages)
+    assert "User: What is X?" in result
+    assert "Assistant: X is a thing." in result
+
+
+def test_build_user_message_with_history():
+    from src.rag import build_user_message
+    from src.models import SessionMessage
+
+    results = [_make_result("some context", "file.py", symbol_name="func")]
+    history = [
+        SessionMessage(session_id="s1", timestamp=1000, role="user", content="prev question"),
+        SessionMessage(session_id="s1", timestamp=2000, role="assistant", content="prev answer"),
+    ]
+    message = build_user_message("follow-up?", results, history=history)
+    assert "prev question" in message
+    assert "prev answer" in message
+    assert "follow-up?" in message
+    assert "some context" in message

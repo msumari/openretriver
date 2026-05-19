@@ -114,3 +114,23 @@ def test_search_empty_collection(mock_embed, memory_client):
     ensure_collection(memory_client)
     results = search("anything", client=memory_client)
     assert results == []
+
+
+@patch("src.search._embed_query", return_value=DUMMY_VECTOR)
+def test_search_excludes_session_points(mock_embed, populated_client):
+    from src.search import search
+    from src.models import FILE_TYPE_SESSION
+    from src.storage import ensure_session_indexes, store_session_message
+    from src.models import SessionMessage
+    import time
+
+    ensure_session_indexes(populated_client)
+    msg = SessionMessage(
+        session_id="test-sess", timestamp=int(time.time() * 1000),
+        role="user", content="a question about loading",
+    )
+    store_session_message(populated_client, msg)
+
+    results = search("loading", client=populated_client, top_k=10, score_threshold=0.0)
+    for r in results:
+        assert r.file_type != FILE_TYPE_SESSION

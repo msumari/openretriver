@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from qdrant_client import QdrantClient
 
 from src.search import search, SearchResult
+from src.models import SessionMessage
 from src.model_provider import get_provider, GenerateFn
 
 logger = logging.getLogger(__name__)
@@ -47,11 +48,34 @@ def format_context(results: list[SearchResult]) -> str:
     return "\n\n".join(blocks)
 
 
-def build_user_message(question: str, results: list[SearchResult]) -> str:
+def format_history(messages: list[SessionMessage]) -> str:
+    if not messages:
+        return ""
+    lines = []
+    for msg in messages:
+        role_label = "User" if msg.role == "user" else "Assistant"
+        lines.append(f"{role_label}: {msg.content}")
+    return "\n".join(lines)
+
+
+def build_user_message(
+    question: str,
+    results: list[SearchResult],
+    history: list[SessionMessage] | None = None,
+) -> str:
     context = format_context(results)
-    if not context:
-        return f"--- Context ---\n\nNo relevant documents found.\n\n--- Question ---\n{question}"
-    return f"--- Context ---\n\n{context}\n\n--- Question ---\n{question}"
+    history_text = format_history(history or [])
+
+    parts = []
+    parts.append("--- Context ---")
+    parts.append(context if context else "No relevant documents found.")
+    if history_text:
+        parts.append("--- Conversation History ---")
+        parts.append(history_text)
+    parts.append("--- Question ---")
+    parts.append(question)
+
+    return "\n\n".join(parts)
 
 
 def _extract_sources(answer: str) -> list[str]:
@@ -65,6 +89,7 @@ def ask(
     top_k: int = 5,
     score_threshold: float = 0.6,
     generate: GenerateFn | None = None,
+    history: list[SessionMessage] | None = None,
 ) -> RAGResponse:
     results = search(
         question, client=client, top_k=top_k, score_threshold=score_threshold
@@ -83,7 +108,7 @@ def ask(
     if generate is None:
         generate = get_provider()
 
-    user_message = build_user_message(question, results)
+    user_message = build_user_message(question, results, history=history)
     answer = generate(SYSTEM_PROMPT, user_message)
 
     sources = _extract_sources(answer)
