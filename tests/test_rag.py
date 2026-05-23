@@ -182,3 +182,42 @@ def test_build_user_message_with_history():
     assert "prev answer" in message
     assert "follow-up?" in message
     assert "some context" in message
+
+
+# --- Error handling tests (Phase 5) ---
+
+
+@patch("src.rag.search")
+def test_ask_handles_search_failure(mock_search):
+    from src.rag import ask, RAGResponse
+
+    mock_search.side_effect = Exception("Connection refused")
+
+    response = ask("How does loading work?")
+    assert isinstance(response, RAGResponse)
+    assert response.chunks_used == 0
+    assert response.sources == []
+    assert "unavailable" in response.answer.lower() or "error" in response.answer.lower()
+
+
+@patch("src.rag.search")
+@patch("src.rag.get_provider")
+def test_ask_handles_llm_failure(mock_get_provider, mock_search):
+    from src.rag import ask, RAGResponse
+
+    mock_search.return_value = [
+        _make_result("The loader walks directories", "src/loader.py", symbol_name="load_files"),
+    ]
+    mock_get_provider.return_value = _raise_exception("Bedrock throttled")
+
+    response = ask("How does loading work?")
+    assert isinstance(response, RAGResponse)
+    assert response.chunks_used == 1
+    assert "src/loader.py" in response.sources
+    assert "unavailable" in response.answer.lower() or "error" in response.answer.lower()
+
+
+def _raise_exception(msg):
+    def _fn(system, user_message):
+        raise Exception(msg)
+    return _fn

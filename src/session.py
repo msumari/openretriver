@@ -37,14 +37,29 @@ def get_history(client, session_id: str, limit: int = MAX_HISTORY_MESSAGES) -> l
 
 def repl(client=None) -> None:
     if client is None:
-        client = get_client()
+        try:
+            client = get_client()
+        except Exception as e:
+            logger.error("Failed to connect to Qdrant: %s", e)
+            print("Error: Cannot connect to Qdrant. Please check that it is running.")
+            return
 
-    ensure_collection(client)
-    ensure_session_indexes(client)
-    cleanup_expired_sessions(client, ttl_hours=SESSION_TTL_HOURS)
+    try:
+        ensure_collection(client)
+        ensure_session_indexes(client)
+        cleanup_expired_sessions(client, ttl_hours=SESSION_TTL_HOURS)
+    except Exception as e:
+        logger.warning("Session setup failed: %s. Continuing without session persistence.", e)
 
     session_id = generate_session_id()
-    generate = get_provider()
+
+    try:
+        generate = get_provider()
+    except Exception as e:
+        logger.error("Failed to initialize LLM provider: %s", e)
+        print("Error: Cannot initialize LLM provider. Check your credentials and configuration.")
+        return
+
     history: list[SessionMessage] = []
 
     print(f"Session started: {session_id[:8]}...")
@@ -78,7 +93,11 @@ def repl(client=None) -> None:
         now_ms = int(time.time() * 1000)
         history.append(SessionMessage(session_id=session_id, timestamp=now_ms, role="user", content=question))
         history.append(SessionMessage(session_id=session_id, timestamp=now_ms + 1, role="assistant", content=response.answer))
-        record_exchange(client, session_id, question, response.answer)
+
+        try:
+            record_exchange(client, session_id, question, response.answer)
+        except Exception as e:
+            logger.warning("Failed to persist session message: %s", e)
 
     print("Session ended.")
 

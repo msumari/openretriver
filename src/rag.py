@@ -91,9 +91,18 @@ def ask(
     generate: GenerateFn | None = None,
     history: list[SessionMessage] | None = None,
 ) -> RAGResponse:
-    results = search(
-        question, client=client, top_k=top_k, score_threshold=score_threshold
-    )
+    try:
+        results = search(
+            question, client=client, top_k=top_k, score_threshold=score_threshold
+        )
+    except Exception as e:
+        logger.error("Search failed: %s", e)
+        return RAGResponse(
+            answer="Search is currently unavailable. Please check that Qdrant is running and accessible.",
+            sources=[],
+            chunks_used=0,
+        )
+
     logger.info("Retrieved %d chunks for question", len(results))
     for r in results:
         logger.info("  %.4f  %s", r.score, r.source)
@@ -109,7 +118,17 @@ def ask(
         generate = get_provider()
 
     user_message = build_user_message(question, results, history=history)
-    answer = generate(SYSTEM_PROMPT, user_message)
+
+    try:
+        answer = generate(SYSTEM_PROMPT, user_message)
+    except Exception as e:
+        logger.error("LLM generation failed: %s", e)
+        sources = [r.source for r in results]
+        return RAGResponse(
+            answer="LLM is currently unavailable. Retrieved sources: " + ", ".join(sources),
+            sources=sources,
+            chunks_used=len(results),
+        )
 
     sources = _extract_sources(answer)
     return RAGResponse(answer=answer, sources=sources, chunks_used=len(results))
