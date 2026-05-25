@@ -131,3 +131,25 @@ def test_delete_session(ready_client):
 
     assert len(fetch_session_history(ready_client, "sess-1")) == 0
     assert len(fetch_session_history(ready_client, "sess-2")) == 1
+
+
+def test_session_isolated_between_collections(memory_client):
+    ensure_collection(memory_client, "repo-a")
+    ensure_session_indexes(memory_client, "repo-a")
+    ensure_collection(memory_client, "repo-b")
+    ensure_session_indexes(memory_client, "repo-b")
+
+    now = int(time.time() * 1000)
+    store_session_message(memory_client, _msg("sess-a", "user", "question for A", now), collection_name="repo-a")
+    store_session_message(memory_client, _msg("sess-b", "user", "question for B", now), collection_name="repo-b")
+
+    history_a = fetch_session_history(memory_client, "sess-a", collection_name="repo-a")
+    history_b = fetch_session_history(memory_client, "sess-b", collection_name="repo-b")
+
+    assert len(history_a) == 1
+    assert history_a[0].content == "question for A"
+    assert len(history_b) == 1
+    assert history_b[0].content == "question for B"
+
+    cross_check = fetch_session_history(memory_client, "sess-a", collection_name="repo-b")
+    assert len(cross_check) == 0

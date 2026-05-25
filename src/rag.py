@@ -1,6 +1,5 @@
 import logging
 import re
-import sys
 from dataclasses import dataclass
 
 from qdrant_client import QdrantClient
@@ -8,6 +7,7 @@ from qdrant_client import QdrantClient
 from src.search import search, SearchResult
 from src.models import SessionMessage
 from src.model_provider import get_provider, GenerateFn
+from src.storage import COLLECTION_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -90,10 +90,14 @@ def ask(
     score_threshold: float = 0.5,
     generate: GenerateFn | None = None,
     history: list[SessionMessage] | None = None,
+    collection_name: str | None = None,
 ) -> RAGResponse:
+    collection_name = collection_name or COLLECTION_NAME
+
     try:
         results = search(
-            question, client=client, top_k=top_k, score_threshold=score_threshold
+            question, client=client, top_k=top_k,
+            score_threshold=score_threshold, collection_name=collection_name,
         )
     except Exception as e:
         logger.error("Search failed: %s", e)
@@ -135,17 +139,20 @@ def ask(
 
 
 if __name__ == "__main__":
+    import argparse
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    if len(sys.argv) < 2:
-        print("Usage: python -m src.rag 'your question here'")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("question", nargs="+")
+    parser.add_argument("--name", default=None)
+    args = parser.parse_args()
 
-    question = " ".join(sys.argv[1:])
-    response = ask(question)
+    question = " ".join(args.question)
+    response = ask(question, collection_name=args.name)
 
     print(f"\nAnswer:\n{response.answer}")
     if response.sources:

@@ -2,9 +2,12 @@ import logging
 import time
 import uuid
 
+from qdrant_client import QdrantClient
+
 from src.models import SessionMessage
 from src.rag import ask
 from src.storage import (
+    COLLECTION_NAME,
     get_client,
     ensure_collection,
     store_session_message,
@@ -24,18 +27,24 @@ def generate_session_id() -> str:
     return uuid.uuid4().hex
 
 
-def record_exchange(client, session_id: str, question: str, answer: str) -> None:
+def record_exchange(
+    client: QdrantClient, session_id: str, question: str, answer: str,
+    collection_name: str = COLLECTION_NAME,
+) -> None:
     now_ms = int(time.time() * 1000)
     user_msg = SessionMessage(session_id=session_id, timestamp=now_ms, role="user", content=question)
     assistant_msg = SessionMessage(session_id=session_id, timestamp=now_ms + 1, role="assistant", content=answer)
-    store_session_message(client, [user_msg, assistant_msg])
+    store_session_message(client, [user_msg, assistant_msg], collection_name=collection_name)
 
 
-def get_history(client, session_id: str, limit: int = MAX_HISTORY_MESSAGES) -> list[SessionMessage]:
-    return fetch_session_history(client, session_id, limit=limit)
+def get_history(
+    client: QdrantClient, session_id: str, limit: int = MAX_HISTORY_MESSAGES,
+    collection_name: str = COLLECTION_NAME,
+) -> list[SessionMessage]:
+    return fetch_session_history(client, session_id, limit=limit, collection_name=collection_name)
 
 
-def repl(client=None) -> None:
+def repl(client=None, collection_name: str | None = None) -> None:
     if client is None:
         try:
             client = get_client()
@@ -44,10 +53,12 @@ def repl(client=None) -> None:
             print("Error: Cannot connect to Qdrant. Please check that it is running.")
             return
 
+    collection_name = collection_name or COLLECTION_NAME
+
     try:
-        ensure_collection(client)
-        ensure_session_indexes(client)
-        cleanup_expired_sessions(client, ttl_hours=SESSION_TTL_HOURS)
+        ensure_collection(client, collection_name)
+        ensure_session_indexes(client, collection_name)
+        cleanup_expired_sessions(client, ttl_hours=SESSION_TTL_HOURS, collection_name=collection_name)
     except Exception as e:
         logger.warning("Session setup failed: %s. Continuing without session persistence.", e)
 
@@ -83,6 +94,7 @@ def repl(client=None) -> None:
             client=client,
             generate=generate,
             history=recent_history,
+            collection_name=collection_name,
         )
 
         print(f"\n{response.answer}")
@@ -95,7 +107,7 @@ def repl(client=None) -> None:
         history.append(SessionMessage(session_id=session_id, timestamp=now_ms + 1, role="assistant", content=response.answer))
 
         try:
-            record_exchange(client, session_id, question, response.answer)
+            record_exchange(client, session_id, question, response.answer, collection_name=collection_name)
         except Exception as e:
             logger.warning("Failed to persist session message: %s", e)
 
@@ -103,8 +115,15 @@ def repl(client=None) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    repl()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--name", default=None)
+    args = parser.parse_args()
+
+    repl(collection_name=args.name)

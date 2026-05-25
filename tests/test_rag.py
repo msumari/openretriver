@@ -184,7 +184,7 @@ def test_build_user_message_with_history():
     assert "some context" in message
 
 
-# --- Error handling tests (Phase 5) ---
+# --- Error handling tests ---
 
 
 @patch("src.rag.search")
@@ -221,3 +221,17 @@ def _raise_exception(msg):
     def _fn(system, user_message):
         raise Exception(msg)
     return _fn
+
+
+@patch("src.rag.search")
+@patch("src.rag.get_provider")
+def test_ask_passes_collection_name_to_search(mock_get_provider, mock_search):
+    from src.rag import ask
+
+    mock_search.return_value = []
+    mock_get_provider.return_value = lambda system, msg: "answer"
+
+    ask("question?", collection_name="my-repo")
+    mock_search.assert_called_once()
+    call_kwargs = mock_search.call_args
+    assert call_kwargs.kwargs.get("collection_name") == "my-repo"
