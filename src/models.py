@@ -45,11 +45,24 @@ CODE_EXTENSIONS: set[str] = {".py", ".js", ".ts", ".rs"}
 SUPPORTED_EXTENSIONS: set[str] = DOC_EXTENSIONS | CODE_EXTENSIONS
 IGNORE_DIRS: set[str] = {
     ".git",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
     "node_modules",
     "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    ".ruff_cache",
     "target",
-    "venv",
     "dist",
+    "build",
+    ".eggs",
+    "site-packages",
+    ".next",
+    ".nuxt",
+    ".aws-sam",
 }
 EXTENSION_TO_LANGUAGE: dict[str, str] = {
     ".py": "python",

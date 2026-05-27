@@ -16,13 +16,13 @@ test-slow:
 	uv run pytest -m slow
 
 ingest:
-	uv run python -m src.pipeline $(or $(path),.) $(if $(name),--name $(name),)
+	uv run openretriver ingest $(or $(path),.) $(if $(name),--name $(name),)
 
 ask:
-	uv run python -m src.rag $(q) $(if $(name),--name $(name),)
+	uv run openretriver ask $(q) $(if $(name),--name $(name),)
 
 chat:
-	uv run python -m src.session $(if $(name),--name $(name),)
+	uv run openretriver chat $(if $(name),--name $(name),)
 
 qdrant-up:
 	docker run -d --name qdrant -p 127.0.0.1:6333:6333 -v qdrant_data:/qdrant/storage -e QDRANT__SERVICE__API_KEY=$(QDRANT_API_KEY) qdrant/qdrant
