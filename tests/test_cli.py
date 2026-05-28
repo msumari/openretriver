@@ -81,3 +81,42 @@ def test_chat_with_name():
     with patch("src.cli.repl") as mock_repl:
         main(["chat", "--name", "myrepo"])
         mock_repl.assert_called_once_with(collection_name="myrepo")
+
+
+def test_ingest_qdrant_connection_error(capsys):
+    from src.cli import main
+    from qdrant_client.http.exceptions import ResponseHandlingException
+
+    with patch("src.cli.ingest") as mock_ingest:
+        mock_ingest.side_effect = ResponseHandlingException(ConnectionError("[Errno 61] Connection refused"))
+        with pytest.raises(SystemExit) as exc_info:
+            main(["ingest", "."])
+        assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "Could not connect to Qdrant" in captured.err
+
+
+def test_ask_qdrant_connection_error(capsys):
+    from src.cli import main
+    from qdrant_client.http.exceptions import ResponseHandlingException
+
+    with patch("src.cli.ask") as mock_ask:
+        mock_ask.side_effect = ResponseHandlingException(ConnectionError("[Errno 61] Connection refused"))
+        with pytest.raises(SystemExit) as exc_info:
+            main(["ask", "hello"])
+        assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "Could not connect to Qdrant" in captured.err
+
+
+def test_chat_qdrant_connection_error(capsys):
+    from src.cli import main
+    from qdrant_client.http.exceptions import ResponseHandlingException
+
+    with patch("src.cli.repl") as mock_repl:
+        mock_repl.side_effect = ResponseHandlingException(ConnectionError("[Errno 61] Connection refused"))
+        with pytest.raises(SystemExit) as exc_info:
+            main(["chat"])
+        assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "Could not connect to Qdrant" in captured.err
