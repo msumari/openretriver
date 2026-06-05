@@ -7,7 +7,9 @@ from src.models import (
     DOC_EXTENSIONS,
     CODE_EXTENSIONS,
     IGNORE_DIRS,
+    IGNORE_FILES,
     EXTENSION_TO_LANGUAGE,
+    SUPPORTED_FILENAMES,
     LoadedFile,
     Chunk,
     EmbeddedChunk,
@@ -111,23 +113,44 @@ class TestEmbeddedChunk:
 
 class TestConstants:
     def test_supported_extensions(self):
-        assert SUPPORTED_EXTENSIONS == {".md", ".txt", ".py", ".js", ".ts", ".rs"}
+        assert SUPPORTED_EXTENSIONS == {
+            ".md", ".txt", ".py", ".js", ".ts", ".rs",
+            ".json", ".yaml", ".yml", ".sh", ".bash", ".mk",
+        }
 
     def test_doc_extensions(self):
         assert DOC_EXTENSIONS == {".md", ".txt"}
 
     def test_code_extensions(self):
-        assert CODE_EXTENSIONS == {".py", ".js", ".ts", ".rs"}
+        assert CODE_EXTENSIONS == {
+            ".py", ".js", ".ts", ".rs",
+            ".json", ".yaml", ".yml", ".sh", ".bash", ".mk",
+        }
 
     def test_ignore_dirs(self):
         for d in [".git", "node_modules", "__pycache__", "target", "venv", "dist"]:
             assert d in IGNORE_DIRS
+
+    def test_ignore_files(self):
+        for f in ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock", "uv.lock"]:
+            assert f in IGNORE_FILES
 
     def test_extension_to_language(self):
         assert EXTENSION_TO_LANGUAGE[".py"] == "python"
         assert EXTENSION_TO_LANGUAGE[".js"] == "javascript"
         assert EXTENSION_TO_LANGUAGE[".ts"] == "typescript"
         assert EXTENSION_TO_LANGUAGE[".rs"] == "rust"
+        assert EXTENSION_TO_LANGUAGE[".json"] == "json"
+        assert EXTENSION_TO_LANGUAGE[".yaml"] == "yaml"
+        assert EXTENSION_TO_LANGUAGE[".yml"] == "yaml"
+        assert EXTENSION_TO_LANGUAGE[".sh"] == "bash"
+        assert EXTENSION_TO_LANGUAGE[".bash"] == "bash"
+        assert EXTENSION_TO_LANGUAGE[".mk"] == "make"
+
+    def test_supported_filenames(self):
+        assert SUPPORTED_FILENAMES["Makefile"] == ".mk"
+        assert SUPPORTED_FILENAMES["makefile"] == ".mk"
+        assert SUPPORTED_FILENAMES["GNUmakefile"] == ".mk"
 
     def test_doc_and_code_union_equals_supported(self):
         assert DOC_EXTENSIONS | CODE_EXTENSIONS == SUPPORTED_EXTENSIONS

@@ -6,7 +6,10 @@ from src.loader import load_files
 def test_finds_all_supported_types(sample_project_dir):
     results = load_files(sample_project_dir)
     extensions = {f.extension for f in results}
-    assert extensions == {".md", ".txt", ".py", ".js", ".ts", ".rs"}
+    assert extensions == {
+        ".md", ".txt", ".py", ".js", ".ts", ".rs",
+        ".json", ".yaml", ".sh", ".mk",
+    }
 
 
 def test_ignores_unsupported_extensions(sample_project_dir):
@@ -60,3 +63,29 @@ def test_handles_binary_file_gracefully(tmp_path):
     (tmp_path / "binary.py").write_bytes(b"\x80\x81\x82\x83")
     results = load_files(tmp_path)
     assert results == []
+
+
+def test_discovers_makefile_by_name(tmp_path):
+    (tmp_path / "Makefile").write_text("all:\n\techo done\n")
+    results = load_files(tmp_path)
+    assert len(results) == 1
+    assert results[0].extension == ".mk"
+    assert results[0].path == "Makefile"
+
+
+def test_discovers_gnumakefile(tmp_path):
+    (tmp_path / "GNUmakefile").write_text("all:\n\techo done\n")
+    results = load_files(tmp_path)
+    assert len(results) == 1
+    assert results[0].extension == ".mk"
+
+
+def test_skips_lock_files(tmp_path):
+    (tmp_path / "package-lock.json").write_text('{"lockfileVersion": 3}')
+    (tmp_path / "yarn.lock").write_text("# yarn lockfile v1\n")
+    (tmp_path / "package.json").write_text('{"name": "app"}')
+    results = load_files(tmp_path)
+    paths = {f.path for f in results}
+    assert "package-lock.json" not in paths
+    assert "yarn.lock" not in paths
+    assert "package.json" in paths

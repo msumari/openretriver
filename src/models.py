@@ -41,8 +41,23 @@ FILE_TYPE_SESSION = "session"
 SYMBOL_TYPE_PREAMBLE = "preamble"
 
 DOC_EXTENSIONS: set[str] = {".md", ".txt"}
-CODE_EXTENSIONS: set[str] = {".py", ".js", ".ts", ".rs"}
+CODE_EXTENSIONS: set[str] = {".py", ".js", ".ts", ".rs", ".json", ".yaml", ".yml", ".sh", ".bash", ".mk"}
 SUPPORTED_EXTENSIONS: set[str] = DOC_EXTENSIONS | CODE_EXTENSIONS
+IGNORE_FILES: set[str] = {
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "composer.lock",
+    "Cargo.lock",
+    "uv.lock",
+    "poetry.lock",
+    "Pipfile.lock",
+}
+SUPPORTED_FILENAMES: dict[str, str] = {
+    "Makefile": ".mk",
+    "makefile": ".mk",
+    "GNUmakefile": ".mk",
+}
 IGNORE_DIRS: set[str] = {
     ".git",
     ".venv",
@@ -69,6 +84,12 @@ EXTENSION_TO_LANGUAGE: dict[str, str] = {
     ".js": "javascript",
     ".ts": "typescript",
     ".rs": "rust",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".mk": "make",
 }
 NODE_TYPE_TO_SYMBOL_TYPE = {
     "function_definition": "function",
@@ -82,6 +103,10 @@ NODE_TYPE_TO_SYMBOL_TYPE = {
     "impl_item": "impl",
     "struct_item": "struct",
     "enum_item": "enum",
+    "pair": "pair",
+    "block_mapping_pair": "pair",
+    "variable_assignment": "variable",
+    "rule": "rule",
 }
 
 

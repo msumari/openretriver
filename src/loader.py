@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from src.models import LoadedFile, SUPPORTED_EXTENSIONS, IGNORE_DIRS
+from src.models import LoadedFile, SUPPORTED_EXTENSIONS, IGNORE_DIRS, IGNORE_FILES, SUPPORTED_FILENAMES
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +27,20 @@ def load_files(root: str | Path) -> list[LoadedFile]:
             continue
         if _has_ignored_parent(file_path, root):
             continue
-        if file_path.suffix not in SUPPORTED_EXTENSIONS:
+        if file_path.name in IGNORE_FILES:
             continue
+        ext = file_path.suffix
+        if ext not in SUPPORTED_EXTENSIONS:
+            if file_path.name not in SUPPORTED_FILENAMES:
+                continue
+            ext = SUPPORTED_FILENAMES[file_path.name]
         content = _read_text_safe(file_path)
         if content is None:
             continue
         results.append(
             LoadedFile(
                 path=str(file_path.relative_to(root)),
-                extension=file_path.suffix,
+                extension=ext,
                 content=content,
             )
         )

@@ -13,6 +13,12 @@ def sample_project_dir(tmp_path: Path) -> Path:
     (tmp_path / "src" / "types.ts").write_text("interface Config {}\n")
     (tmp_path / "src" / "lib.rs").write_text("fn main() {}\n")
 
+    (tmp_path / "config.json").write_text('{"name": "test"}')
+    (tmp_path / "config.yaml").write_text("version: 1.0\n")
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "build.sh").write_text("#!/bin/bash\necho ok\n")
+    (tmp_path / "Makefile").write_text("all:\n\techo done\n")
+
     # unsupported files — should be ignored
     (tmp_path / "image.jpg").write_bytes(b"\xff\xd8\xff")
     (tmp_path / "data.csv").write_text("a,b,c\n1,2,3\n")
