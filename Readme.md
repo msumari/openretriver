@@ -9,7 +9,7 @@ Index any codebase and ask questions about it. OpenRetriver loads your project f
 3. **Searches** using hybrid retrieval: combines semantic similarity with exact term matching via Reciprocal Rank Fusion
 4. **Answers** your questions grounded in the actual code, with source citations
 
-## Supported languages
+## Supported file types
 
 | Type | Extensions |
 |------|-----------|
@@ -18,6 +18,10 @@ Index any codebase and ask questions about it. OpenRetriver loads your project f
 | JavaScript | `.js` |
 | TypeScript | `.ts` |
 | Rust | `.rs` |
+| JSON | `.json` |
+| YAML | `.yaml`, `.yml` |
+| Bash | `.sh`, `.bash` |
+| Make | `.mk`, `Makefile` |
 
 ## Requirements
 
